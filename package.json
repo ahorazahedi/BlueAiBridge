@@ -1,0 +1,35 @@
+{
+  "name": "blue-ai-bridge",
+  "version": "1.0.0",
+  "description": "BlueAIBridge: Claude Code and ChatGPT/Codex review and talk to each other, with a live monitoring dashboard and a macOS menu-bar app.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "bin": {
+    "blueai": "dist/src/cli.js"
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "build": "npm run build:core && npm run build:ui",
+    "build:core": "tsc -p tsconfig.json",
+    "build:ui": "vite build --config dashboard/vite.config.ts",
+    "build:mac": "bash macos/build.sh",
+    "build:menubar": "bash macos/build.sh",
+    "dev:ui": "vite --config dashboard/vite.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p dashboard/tsconfig.json --noEmit",
+    "test": "npm run build:core && node --no-warnings --test --test-concurrency=1 \"dist/test/*.test.js\"",
+    "blueai": "node --no-warnings dist/src/cli.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.7",
+    "@types/react": "^19.3.3",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}

@@ -1,0 +1,16 @@
+node_modules/
+dist/
+macos/build/
+*.log
+.DS_Store
+# Flutter
+desktop/.dart_tool/
+desktop/build/
+desktop/.flutter-plugins
+desktop/.flutter-plugins-dependencies
+desktop/**/Flutter/ephemeral/
+desktop/**/Pods/
+desktop/.idea/
+*.iml
+# local
+.claude/settings.local.json
