@@ -67,8 +67,10 @@ fake({});
   const db = b.store.db;
   const now = Date.now();
   const msgs = db.prepare("SELECT id, created_at, delivered_at, answered_at FROM messages ORDER BY created_at").all();
+  // random times over 20 hours, sorted, so messages keep their order
+  const times = msgs.map(() => now - Math.round(Math.random() * 20 * 3600_000)).sort((a, b) => a - b);
   msgs.forEach((m, i) => {
-    const shift = Math.round(((msgs.length - i) / msgs.length) * 20 * 3600_000 * (0.7 + Math.random() * 0.3));
+    const shift = now - times[i];
     const lat = 4000 + Math.round(Math.random() * 90_000);
     db.prepare("UPDATE messages SET created_at = ?, delivered_at = CASE WHEN delivered_at IS NULL THEN NULL ELSE ? END, answered_at = CASE WHEN answered_at IS NULL THEN NULL ELSE ? END WHERE id = ?")
       .run(now - shift, now - shift + lat, now - shift + lat + 20_000 + Math.round(Math.random() * 200_000), m.id);

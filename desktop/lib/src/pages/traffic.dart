@@ -230,7 +230,7 @@ class _TrafficPageState extends State<TrafficPage> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('${Fmt.appName(d.from == 'bridge' ? null : d.from)} → ${Fmt.appName(d.to == '?' ? null : d.to)}', style: T.caption),
+                Text('${Fmt.appName(d.from == 'bridge' ? null : d.from)} → ${d.to == '?' ? 'pending' : Fmt.appName(d.to)}', style: T.caption),
                 const SizedBox(width: 6),
                 Container(
                   width: (120 * d.bytes / total).clamp(4, 120).toDouble(),

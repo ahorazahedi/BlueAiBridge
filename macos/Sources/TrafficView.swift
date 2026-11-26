@@ -102,7 +102,7 @@ struct TrafficView: View {
         return VStack(alignment: .trailing, spacing: 4) {
             ForEach(dirs, id: \.self) { d in
                 HStack(spacing: 6) {
-                    Text("\(Fmt.appName(d.from == "bridge" ? nil : d.from)) → \(Fmt.appName(d.to == "?" ? nil : d.to))").font(.caption)
+                    Text("\(Fmt.appName(d.from == "bridge" ? nil : d.from)) → \(d.to == "?" ? "pending" : Fmt.appName(d.to))").font(.caption)
                     Capsule().fill(d.from == "claude" ? Palette.claudeToGpt : d.from == "codex" ? Palette.gptToClaude : Palette.bridge)
                         .frame(width: max(4, 120 * CGFloat(d.bytes) / CGFloat(total)), height: 6)
                     Text("\(Fmt.bytes(d.bytes)) · \(d.messages)").font(.caption.monospacedDigit()).foregroundStyle(.secondary).frame(width: 110, alignment: .trailing)
