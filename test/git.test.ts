@@ -18,6 +18,10 @@ test("fingerprint follows content, not commits, and ignores secrets", async () =
   assert.equal(await G.fingerprint(dir), f1, "committing doesn't change the fingerprint");
   fs.writeFileSync(path.join(dir, ".env"), "SECRET=1\n");
   assert.equal(await G.fingerprint(dir), f1, "secret files are left out");
+  fs.mkdirSync(path.join(dir, "config", "Secrets"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "config", "Secrets", "prod.yml"), "k: v\n");
+  fs.writeFileSync(path.join(dir, "sub", ".env.local").replace("sub/", ""), "A=1\n");
+  assert.equal(await G.fingerprint(dir), f1, "secret folders at any depth, any case, are left out");
   fs.writeFileSync(path.join(dir, "new.js"), "x\n");
   assert.notEqual(await G.fingerprint(dir), f1, "untracked files count");
 });
@@ -53,6 +57,21 @@ test("snapshots leave the user's index untouched and diff a turn", async () => {
   assert.match(ch.command, /git -C .* diff [0-9a-f]{12} [0-9a-f]{12}/);
 });
 
+test("the diff a reviewer is given leaves out committed secret files", async () => {
+  const { dir, git } = makeRepo(root, "sec");
+  fs.mkdirSync(path.join(dir, "deploy", "Credentials"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "deploy", "Credentials", "prod.json"), '{"k":1}\n');
+  fs.writeFileSync(path.join(dir, "deploy", ".env.production"), "A=1\n");
+  git("add", "-f", ".");
+  git("commit", "-qm", "secrets");
+  fs.writeFileSync(path.join(dir, "deploy", "Credentials", "prod.json"), '{"k":2}\n');
+  fs.writeFileSync(path.join(dir, "deploy", ".env.production"), "A=2\n");
+  fs.writeFileSync(path.join(dir, "a.js"), "visible\n");
+  const s = await G.summarize(dir, { includeDiff: true });
+  assert.match(s.diff!, /\+visible/);
+  assert.ok(!/prod\.json|env\.production/.test(s.diff! + s.stat), "secret files never appear in the diff or stat");
+});
+
 test("summaries give status, stat and read-only commands", async () => {
   const { dir } = makeRepo(root, "sum");
   fs.writeFileSync(path.join(dir, "a.js"), "changed\n");
@@ -61,7 +80,7 @@ test("summaries give status, stat and read-only commands", async () => {
   assert.equal(s.git, true);
   assert.match(s.status, /2 changed or untracked/);
   assert.match(s.stat, /a\.js/);
-  assert.ok(s.commands.some((c) => /diff HEAD/.test(c) && /exclude/.test(c)));
+  assert.ok(s.commands.some((c) => /diff HEAD/.test(c) && /:!\*\.env\*/.test(c) && /icase/.test(c)));
   assert.ok(s.commands.some((c) => /u\.js/.test(c)));
   assert.match(s.diff!, /\+changed/);
   const none = await G.summarize(path.join(root, "missing"));
