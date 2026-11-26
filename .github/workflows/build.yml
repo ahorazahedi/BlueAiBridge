@@ -1,0 +1,131 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: "3.50.1"
+
+jobs:
+  bridge:
+    name: Bridge (Node) tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:ui
+      - name: Package the bridge (runs with plain Node, no npm install needed)
+        run: |
+          version=$(node -p "require('./package.json').version")
+          mkdir -p out/BlueAIBridge
+          cp -r dist package.json README.md out/BlueAIBridge/
+          rm -rf out/BlueAIBridge/dist/test
+          find out/BlueAIBridge/dist -name '*.map' -delete
+          tar -C out -czf "out/BlueAIBridge-$version-bridge.tar.gz" BlueAIBridge
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlueAIBridge-bridge
+          path: out/*.tar.gz
+
+  macos-app:
+    name: macOS app (SwiftUI)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build
+        run: bash macos/build.sh
+      - name: Package
+        run: |
+          version=$(node -p "require('./package.json').version")
+          mkdir -p out
+          ditto -c -k --keepParent macos/build/BlueAIBridge.app "out/BlueAIBridge-$version-macos-$(uname -m).zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlueAIBridge-macos
+          path: out/*.zip
+
+  desktop-linux:
+    name: Desktop app (Linux)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libayatana-appindicator3-dev libkeybinder-3.0-dev
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Analyze and test
+        working-directory: desktop
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+      - name: Build and package
+        run: desktop/packaging/linux/build.sh build/dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlueAIBridge-linux-x64
+          path: desktop/build/dist/*
+
+  desktop-windows:
+    name: Desktop app (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Build
+        working-directory: desktop
+        run: |
+          flutter pub get
+          flutter build windows --release
+      - name: Package (zip + installer)
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          $version = (Get-Content ../package.json | ConvertFrom-Json).version
+          New-Item -ItemType Directory -Force build/dist | Out-Null
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "build/dist/BlueAIBridge-$version-windows-x64.zip"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe" "/DVersion=$version" packaging/windows/installer.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlueAIBridge-windows-x64
+          path: desktop/build/dist/*
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [bridge, macos-app, desktop-linux, desktop-windows]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

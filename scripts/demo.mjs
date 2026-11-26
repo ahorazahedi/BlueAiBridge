@@ -53,6 +53,32 @@ fake({ fail: "Claude failed: overloaded (529)" });
 try { await b.ask(codex, { question: "Is this Swift concurrency code free of data races?", to: "claude" }); } catch {}
 fake({});
 for (let i = 0; i < 6; i++) await b.ask(i % 2 ? codex : claude, { question: `Quick check #${i + 1}: is this regex anchored correctly? ^[a-z0-9_-]{3,16}$`, to: i % 2 ? "claude" : "chatgpt" });
+// more traffic, spread over the last 20 hours so the charts look like a real day
+const questions = ["Is this migration safe to run twice?", "Which cache key avoids stale prices?", "Does this retry loop need jitter?", "Is the token refresh race-free?", "Should this be a partial index?", "Is this error message clear enough?"];
+for (let i = 0; i < 36; i++) {
+  fake({ answer: `Short answer #${i + 1}: yes, with one caveat about ordering.` });
+  const from = i % 3 === 0 ? codex : claude;
+  await b.ask(from, { question: questions[i % questions.length], to: from === codex ? "claude" : "chatgpt" });
+}
+fake({ answer: "[CHANGES REQUESTED]\n\nThe handler swallows the error.\n\nMust fix:\n- api/orders.ts:42 — rethrow after logging." });
+await b.review(codex, { request: "Order API: added retry around the payment call.", paths: [repo] });
+fake({});
+{
+  const db = b.store.db;
+  const now = Date.now();
+  const msgs = db.prepare("SELECT id, created_at, delivered_at, answered_at FROM messages ORDER BY created_at").all();
+  msgs.forEach((m, i) => {
+    const shift = Math.round(((msgs.length - i) / msgs.length) * 20 * 3600_000 * (0.7 + Math.random() * 0.3));
+    const lat = 4000 + Math.round(Math.random() * 90_000);
+    db.prepare("UPDATE messages SET created_at = ?, delivered_at = CASE WHEN delivered_at IS NULL THEN NULL ELSE ? END, answered_at = CASE WHEN answered_at IS NULL THEN NULL ELSE ? END WHERE id = ?")
+      .run(now - shift, now - shift + lat, now - shift + lat + 20_000 + Math.round(Math.random() * 200_000), m.id);
+  });
+  for (const l of db.prepare("SELECT id FROM links").all()) {
+    const r = db.prepare("SELECT MIN(created_at) a, MAX(created_at) z FROM messages WHERE link_id = ?").get(l.id);
+    if (r.a) db.prepare("UPDATE links SET created_at = ?, updated_at = ? WHERE id = ?").run(r.a, r.z, l.id);
+  }
+  db.prepare("UPDATE events SET ts = (SELECT created_at FROM messages WHERE messages.id = events.message_id) WHERE message_id IS NOT NULL").run();
+}
 console.log(`demo broker: http://127.0.0.1:${h.port}/auth?token=${h.token}`);
 console.log(`join code waiting: ${r4.data.joinCode}`);
 console.log(`state: ${home}`);
