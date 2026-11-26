@@ -1,12 +1,61 @@
-# BlueAIBridge
+<p align="center">
+  <img src="docs/assets/logo.png" width="112" alt="BlueAIBridge logo">
+</p>
 
-**Claude Code and ChatGPT review and talk to each other, with your own subscriptions and no API keys. A native macOS app, and a web dashboard on Windows and Linux, let you watch every exchange.**
+<h1 align="center">BlueAIBridge</h1>
+
+<p align="center">
+  <b>Claude Code and ChatGPT review and talk to each other, with your own subscriptions and no API keys.</b><br>
+  A native macOS app (Swift), a desktop app for Windows and Linux (Flutter) and a web dashboard let you watch every exchange.
+</p>
+
+<p align="center">
+  <a href="../../actions/workflows/build.yml"><img src="../../actions/workflows/build.yml/badge.svg" alt="build"></a>
+  <a href="../../releases/latest"><img src="https://img.shields.io/badge/download-latest%20release-2563eb" alt="Download"></a>
+  <img src="https://img.shields.io/badge/macOS%20·%20Windows%20·%20Ubuntu-supported-0f766e" alt="Platforms">
+</p>
+
+<p align="center">
+  <img src="docs/assets/screenshots/macos-overview.jpg" width="900" alt="BlueAIBridge on macOS: overview with traffic by direction, data flow, verdicts and live activity">
+</p>
 
 - From **Claude Code**: *"Ask ChatGPT to review this change"*, *"Get the plan reviewed by ChatGPT"*, *"Work with GPT on this"* (auto mode).
 - From **ChatGPT** (Codex chats): *"Ask Claude for a second opinion"*, *"Have Claude review my diff"*, *"Work with Claude on this"*.
 - Watch it all in the **UI**: conversations side by side, every message's direction, size, latency and outcome, live activity, the health of every piece, and one-click install and uninstall.
-  - **macOS:** a native SwiftUI app (window + menu-bar icon) in `~/Applications/BlueAIBridge.app`.
-  - **Windows and Linux:** the same UI as a web dashboard, served locally by the broker (`blueai ui`).
+
+## Download
+
+| | Get it | Notes |
+|---|---|---|
+| **macOS** (Apple silicon) | `BlueAIBridge-<version>-macos-arm64.zip` | Unzip into `~/Applications`. The app isn't notarized yet: the first time, right-click it and choose **Open**. |
+| **Windows** (x64) | `BlueAIBridge-<version>-windows-x64-setup.exe` or `.zip` | The setup can start BlueAIBridge in the tray when you sign in. |
+| **Ubuntu / Debian** | `blueaibridge_<version>_amd64.deb` or `_arm64.deb` | `sudo apt install ./blueaibridge_<version>_amd64.deb`. Also as `.tar.gz`. |
+| **The bridge** (all systems) | `BlueAIBridge-<version>-bridge.tar.gz` | Needs Node.js 22.5+. Unpack it, then run `node dist/src/cli.js install`. |
+
+All of these are on the [latest release](../../releases/latest). The apps show and manage the bridge, which you install once per computer (see [Install](#install)).
+
+## How it works
+
+<p align="center">
+  <img src="docs/assets/how-it-works.svg" width="900" alt="Claude Code and ChatGPT each run the BlueAIBridge MCP server and hooks; one local broker stores state, delivers messages visibly or headless, and feeds the macOS app, the desktop app and the web dashboard">
+</p>
+
+Each app runs the same MCP server, so its chats get the `blue_*` tools, and a set of hooks. Both connect to one local **broker**, which:
+
+- keeps every link, message and verdict in SQLite;
+- delivers a message **visibly**, into the other app's open chat, or **headless**, through a background run of that app's CLI that returns the answer;
+- streams every event live to the apps.
+
+More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Screenshots
+
+| macOS (SwiftUI) | Windows / Linux (Flutter) |
+|---|---|
+| <img src="docs/assets/screenshots/macos-conversation.jpg" alt="A review thread on macOS: request, changes requested, fix, approval"> | <img src="docs/assets/screenshots/desktop-conversations.jpg" alt="The same review thread in the Flutter desktop app"> |
+| <img src="docs/assets/screenshots/macos-traffic.jpg" alt="Traffic on macOS: every message with direction, channel, state, size and latency"> | <img src="docs/assets/screenshots/desktop-overview.jpg" alt="Overview in the Flutter desktop app"> |
+
+## Clients
 
 | Client | How it connects |
 |---|---|
@@ -22,7 +71,7 @@ Requirements: Node.js 22.5+, git, and the apps you want to connect (signed in).
 | | macOS | Windows | Linux |
 |---|---|---|---|
 | Clients | Claude Desktop, Claude Code CLI, ChatGPT Desktop, Codex CLI | Claude Desktop, Claude Code CLI, ChatGPT Desktop, Codex CLI | Claude Code CLI, Codex CLI |
-| UI | native app + web | web | web |
+| UI | native Swift app + web | Flutter desktop app + web | Flutter desktop app + web |
 | Background service | LaunchAgent | logon task (Task Scheduler) | systemd user service |
 | Delivery | visible + headless | visible + headless | headless (no desktop apps on Linux) |
 
@@ -45,6 +94,8 @@ npm run build
 node dist/src/cli.js install
 ```
 
+Then install the desktop app: the `.deb` (Ubuntu) or `setup.exe` (Windows) from the latest [GitHub release](../../releases), or build it yourself (see [desktop/README.md](desktop/README.md)) and run `node dist/src/cli.js install desktop`.
+
 Then restart Claude Desktop and ChatGPT Desktop. ChatGPT asks you to trust the BlueAIBridge hooks once; it skips new hooks until you do. Check everything:
 
 ```bash
@@ -63,7 +114,7 @@ node dist/src/cli.js ui
 node dist/src/cli.js uninstall
 ```
 
-You can install or remove one piece at a time: `runtime`, `claude`, `codex`, `service`, `menubar` (the macOS app). The UI's **Clients & Install** page does the same with buttons.
+You can install or remove one piece at a time: `runtime`, `claude`, `codex`, `service`, `menubar` (the macOS app), `desktop` (the Windows/Linux app). The UI's **Clients & Install** page does the same with buttons.
 
 To install on another machine, copy this folder (without `node_modules` and `dist`) and run the commands for that OS.
 
@@ -98,7 +149,7 @@ To install on another machine, copy this folder (without `node_modules` and `dis
 - Failures retry with backoff. A reviewer turn that ends without an answer is noticed. A verdict written as prose instead of through the tool is still accepted. API errors (`StopFailure`) and tool-approval prompts are reported to the waiting chat.
 - The other agent can never call back into the bridge from a run the bridge started.
 
-## The UI (native on macOS, web on Windows/Linux)
+## The UI (Swift on macOS, Flutter on Windows/Linux, web everywhere)
 
 Both have the same pages, data and actions:
 
@@ -140,3 +191,19 @@ node scripts/demo.mjs 7650
 ```
 
 `npm test` runs 41 tests over real processes, git repos and temp configs, with fake agent CLIs. `scripts/demo.mjs` starts a throwaway broker seeded with sample traffic for dashboard work. Run `npm run dev:ui` for the dashboard with hot reload, against a running broker.
+
+### Releases
+
+CI ([.github/workflows/build.yml](.github/workflows/build.yml)) runs on every push:
+
+- the bridge's tests and typecheck;
+- the macOS app (SwiftUI) build;
+- the Linux desktop app: analyze, test, then `.deb` and `.tar.gz`;
+- the Windows desktop app: `setup.exe` (Inno Setup) and `.zip`.
+
+Pushing a version tag publishes all of them as a GitHub release:
+
+```bash
+git tag v1.0.1 && git push origin v1.0.1
+```
+
