@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" role="img" aria-labelledby="t d">
+  <title id="t">How BlueAIBridge works</title>
+  <desc id="d">Claude Code and ChatGPT/Codex each run the BlueAIBridge MCP server and hooks. Both talk to one local broker, which stores state in SQLite, delivers messages visibly or headless, and feeds the desktop apps and web dashboard.</desc>
+  <style>
+    .bg { fill: #ffffff; }
+    .panel { fill: #f6f7f9; stroke: #d0d5dd; }
+    .box { fill: #ffffff; stroke: #d0d5dd; }
+    .broker { fill: #eef4ff; stroke: #2563eb; }
+    .t1 { fill: #101828; font-size: 17px; font-weight: 650; }
+    .t2 { fill: #475467; font-size: 13px; }
+    .t3 { fill: #667085; font-size: 12px; }
+    .lbl { fill: #344054; font-size: 12px; font-weight: 600; }
+    .claude { fill: #c15f3c; }
+    .gpt { fill: #0f766e; }
+    .blue { fill: #2563eb; }
+    .line { stroke: #98a2b3; stroke-width: 2; fill: none; }
+    .c2g { stroke: #2a78d6; stroke-width: 2.5; fill: none; }
+    .g2c { stroke: #eb6834; stroke-width: 2.5; fill: none; }
+    .ui { stroke: #1baf7a; stroke-width: 2; fill: none; stroke-dasharray: 5 4; }
+    .ah-c2g { fill: #2a78d6; } .ah-g2c { fill: #eb6834; } .ah-ui { fill: #1baf7a; } .ah { fill: #98a2b3; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; }
+      .panel { fill: #161b22; stroke: #30363d; }
+      .box { fill: #0d1117; stroke: #30363d; }
+      .broker { fill: #132036; stroke: #4f8df5; }
+      .t1 { fill: #f0f6fc; } .t2 { fill: #c9d1d9; } .t3 { fill: #8b949e; } .lbl { fill: #c9d1d9; }
+      .claude { fill: #e48a66; } .gpt { fill: #3cc2b1; } .blue { fill: #4f8df5; }
+      .line { stroke: #6e7681; } .ah { fill: #6e7681; }
+      .c2g { stroke: #3987e5; } .ah-c2g { fill: #3987e5; }
+      .g2c { stroke: #d95926; } .ah-g2c { fill: #d95926; }
+      .ui { stroke: #199e70; } .ah-ui { fill: #199e70; }
+    }
+  </style>
+  <defs>
+    <marker id="a-c2g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah-c2g"/></marker>
+    <marker id="a-g2c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah-g2c"/></marker>
+    <marker id="a-ui" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah-ui"/></marker>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+  </defs>
+  <rect class="bg" width="1200" height="640" rx="18"/>
+
+  <!-- Claude side -->
+  <rect class="panel" x="30" y="40" width="300" height="330" rx="14"/>
+  <circle class="claude" cx="62" cy="74" r="12"/>
+  <text class="t1" x="84" y="80">Claude Code</text>
+  <text class="t3" x="50" y="104">Claude Desktop (Code tab) · CLI</text>
+  <rect class="box" x="50" y="122" width="260" height="70" rx="10"/>
+  <text class="lbl" x="66" y="146">MCP server · blue_* tools</text>
+  <text class="t3" x="66" y="166">ask · review · auto · join · advise</text>
+  <text class="t3" x="66" y="182">send · receive · status · read_chat</text>
+  <rect class="box" x="50" y="206" width="260" height="70" rx="10"/>
+  <text class="lbl" x="66" y="230">Hooks</text>
+  <text class="t3" x="66" y="250">prompt · start · stop · stopfail</text>
+  <text class="t3" x="66" y="266">permission · listen (wakes the chat)</text>
+  <rect class="box" x="50" y="290" width="260" height="60" rx="10"/>
+  <text class="lbl" x="66" y="314">Headless runs</text>
+  <text class="t3" x="66" y="334">claude -p --resume (read-only)</text>
+
+  <!-- ChatGPT side -->
+  <rect class="panel" x="870" y="40" width="300" height="330" rx="14"/>
+  <circle class="gpt" cx="902" cy="74" r="12"/>
+  <text class="t1" x="924" y="80">ChatGPT / Codex</text>
+  <text class="t3" x="890" y="104">ChatGPT Desktop · Codex CLI</text>
+  <rect class="box" x="890" y="122" width="260" height="70" rx="10"/>
+  <text class="lbl" x="906" y="146">MCP server · blue_* tools</text>
+  <text class="t3" x="906" y="166">same tools, identity from</text>
+  <text class="t3" x="906" y="182">_meta.threadId</text>
+  <rect class="box" x="890" y="206" width="260" height="70" rx="10"/>
+  <text class="lbl" x="906" y="230">Visible delivery</text>
+  <text class="t3" x="906" y="250">codex app-server thread/queue/add</text>
+  <text class="t3" x="906" y="266">+ codex://threads/wake/&lt;id&gt;</text>
+  <rect class="box" x="890" y="290" width="260" height="60" rx="10"/>
+  <text class="lbl" x="906" y="314">Headless runs</text>
+  <text class="t3" x="906" y="334">codex exec [resume] (read-only)</text>
+
+  <!-- Broker -->
+  <rect class="broker" x="420" y="90" width="360" height="230" rx="16" stroke-width="2"/>
+  <text class="t1" x="444" y="124">Broker · 127.0.0.1 + token</text>
+  <text class="t2" x="444" y="150">Bridge engine: links, reviews, rounds,</text>
+  <text class="t2" x="444" y="170">auto mode, routing, retries, 6 h watch</text>
+  <text class="t2" x="444" y="198">SQLite (WAL): chats · links · messages ·</text>
+  <text class="t2" x="444" y="218">auto mode · turns · event log</text>
+  <text class="t2" x="444" y="246">HTTP: /rpc · /api/* · /api/stream (SSE)</text>
+  <text class="t2" x="444" y="274">Files for hooks: view.json · inbox/ · outbox/</text>
+  <text class="t3" x="444" y="302">Background service: LaunchAgent · systemd · logon task</text>
+
+  <!-- flows -->
+  <path class="c2g" d="M330,150 C370,150 380,140 420,140" marker-end="url(#a-c2g)"/>
+  <path class="g2c" d="M870,150 C830,150 820,140 780,140" marker-end="url(#a-g2c)"/>
+  <path class="line" d="M330,240 L420,240" marker-end="url(#a)"/>
+  <path class="line" d="M870,240 L780,240" marker-end="url(#a)"/>
+  <path class="c2g" d="M780,190 C820,190 840,240 886,240" marker-end="url(#a-c2g)"/>
+  <path class="g2c" d="M420,280 C380,280 360,320 314,320" marker-end="url(#a-g2c)"/>
+  <text class="lbl" x="340" y="132">tools</text>
+  <text class="lbl" x="822" y="132">tools</text>
+  <text class="t3" x="342" y="232">hook files</text>
+  <text class="t3" x="800" y="262">hook files</text>
+
+  <!-- UIs -->
+  <rect class="panel" x="190" y="430" width="820" height="170" rx="14"/>
+  <text class="t1" x="214" y="464">See and manage everything</text>
+  <rect class="box" x="214" y="482" width="240" height="96" rx="10"/>
+  <text class="lbl" x="230" y="508">macOS app (SwiftUI)</text>
+  <text class="t3" x="230" y="528">window + menu-bar icon</text>
+  <text class="t3" x="230" y="546">Swift Charts, native tables</text>
+  <rect class="box" x="480" y="482" width="240" height="96" rx="10"/>
+  <text class="lbl" x="496" y="508">Desktop app (Flutter)</text>
+  <text class="t3" x="496" y="528">Windows · Ubuntu · tray icon</text>
+  <text class="t3" x="496" y="546">same design as the Mac app</text>
+  <rect class="box" x="746" y="482" width="240" height="96" rx="10"/>
+  <text class="lbl" x="762" y="508">Web dashboard (React)</text>
+  <text class="t3" x="762" y="528">any browser, served by the broker</text>
+  <text class="t3" x="762" y="546">CSV / JSON export</text>
+  <path class="ui" d="M600,320 L600,478" marker-end="url(#a-ui)"/>
+  <text class="lbl" x="612" y="400">live events · install · health · settings</text>
+
+  <!-- legend -->
+  <rect class="ah-c2g" x="30" y="404" width="12" height="4" rx="2"/><text class="t3" x="48" y="410">Claude → ChatGPT</text>
+  <rect class="ah-g2c" x="30" y="422" width="12" height="4" rx="2"/><text class="t3" x="48" y="428">ChatGPT → Claude</text>
+</svg>
