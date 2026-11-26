@@ -51,6 +51,7 @@ test("review: changes requested → round_of → approved, with validation of wh
   assert.match(r1.text, new RegExp(`round_of: "${linkId}"`));
   const reqBody = b.store.messages({ linkId, kind: ["request"] })[0].body;
   assert.match(reqBody, /## What to review/);
+  assert.equal(b.store.messages({ linkId, kind: ["request"] })[0].deferReason, null, "a headless review never waits for a join");
   assert.match(reqBody, /git -C/);
   fakeAgent({ answer: "[APPROVED]\n\nFixed." });
   const r2 = await b.review(claude, { request: "Handled []", round_of: linkId });

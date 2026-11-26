@@ -227,7 +227,7 @@ export class Bridge {
     });
     if (auto?.on) this.store.saveAuto({ ...this.store.auto(c)!, promptsSinceReview: 0 });
     const msg = this.store.createMessage({ linkId: link.id, kind: "request", from: c, to: reviewer, body, round: 1, state: reviewer ? "pending" : "deferred" });
-    if (!reviewer) this.store.updateMessage(msg.id, { deferReason: "waiting for a chat to join" });
+    if (!reviewer && joinCode) this.store.updateMessage(msg.id, { deferReason: "waiting for a chat to join" });
     return this.dispatchRequest(link, msg, a);
   }
 
@@ -536,7 +536,7 @@ export class Bridge {
     const waiting = this.store.messages({ linkId: link.id, state: ["deferred", "pending"], order: "asc" }).filter((m) => !m.to || sameEndpoint(m.to, c));
     const out: string[] = [`Joined BlueAIBridge link ${link.id} as the reviewer for ${this.label(link.requester)}.`];
     for (const m of waiting) {
-      this.store.updateMessage(m.id, { to: c, state: "delivered", channel: "inline", deliveredAt: now() });
+      this.store.updateMessage(m.id, { to: c, state: "delivered", channel: "inline", deliveredAt: now(), deferReason: null });
       out.push(this.renderForRecipient(this.store.message(m.id)!));
     }
     if (!waiting.length) out.push("No request is waiting yet; requests will arrive in this chat as new messages.");
@@ -824,7 +824,7 @@ export class Bridge {
       this.store.updateLink(link.id, { reviewer: peer });
       if (auto?.on && !auto.reviewer) this.store.saveAuto({ ...auto, reviewer: peer });
     }
-    this.store.updateMessage(m.id, { state: "delivered", to: peer, deliveredAt: now() });
+    this.store.updateMessage(m.id, { state: "delivered", to: peer, deliveredAt: now(), deferReason: null });
     this.store.event("delivery.done", { linkId: m.linkId, messageId: m.id, actor: keyOf(peer), data: { channel: "headless", ms: r.durationMs } });
     const fresh = this.store.message(m.id)!;
     if (m.kind === "request" && link) {
@@ -864,7 +864,7 @@ export class Bridge {
     this.store.event("delivery.started", { linkId: m.linkId, messageId: m.id, actor: keyOf(m.to!), bytes: m.bytes, data: { channel: "visible" } });
     try {
       const { clientId } = await queuePrompt(m.to!.id, this.promptFor(m));
-      this.store.updateMessage(m.id, { state: "delivered", deliveredAt: now(), clientId });
+      this.store.updateMessage(m.id, { state: "delivered", deliveredAt: now(), clientId, deferReason: null });
       this.store.event("delivery.done", { linkId: m.linkId, messageId: m.id, actor: keyOf(m.to!), data: { channel: "visible", queued: true } });
       return { status: "delivered", text: "" };
     } catch (e) {

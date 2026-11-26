@@ -354,7 +354,7 @@ function MessageView({ m, requesterKey, onChange }: { m: Message; requesterKey: 
             )}
           </>
         )}
-        {(m.error || m.deferReason) && (
+        {(m.state === "failed" ? m.error : ["deferred", "pending", "sending"].includes(m.state) && (m.deferReason || m.error)) && (
           <div className="notice" style={{ marginTop: 10, background: m.state === "failed" ? "var(--critical-soft)" : "var(--warning-soft)" }}>
             <IAlert size={15} />
             <div style={{ flex: 1 }}>{m.state === "failed" ? m.error : m.deferReason ?? m.error}</div>

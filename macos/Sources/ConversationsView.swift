@@ -237,10 +237,10 @@ struct MessageBubble: View {
                 DecisionView(decision: d)
             } else {
                 let long = m.kind == "request" && m.body.count > 1200 && !expanded
-                MarkdownText(text: long ? String(m.body.prefix(1200)) + "…" : m.body)
+                MarkdownText(text: long ? clipAtLine(m.body, 1200) : m.body)
                 if long { Button("Show full request (\(Fmt.bytes(m.bytes)))") { expanded = true }.buttonStyle(.link) }
             }
-            if let problem = m.state == "failed" ? m.error : (m.deferReason ?? m.error) {
+            if let problem = m.state == "failed" ? m.error : (["deferred", "pending", "sending"].contains(m.state) ? (m.deferReason ?? m.error) : nil) {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(m.state == "failed" ? Palette.critical : Palette.warning)
                     Text(problem).font(.caption)
