@@ -42,6 +42,7 @@ BlueAIBridge is a new implementation of the ideas in [tolgaertunc/agent-review-b
 | **Codex CLI support** | installs into the same config; CLI sessions get messages with their next prompt |
 | **Claude Code CLI** | covered by the same user-scope install |
 | **Native macOS app** | SwiftUI window with every page (Swift Charts, native tables, save panels), plus a menu-bar icon with live status |
+| **Desktop app (Windows, Linux)** | Flutter, same design as the macOS app, with a tray icon and frameless window; .deb, .tar.gz, setup.exe, .zip |
 | **Web dashboard** | the same UI for Windows and Linux (and any browser): conversations, traffic, live activity, chat library, install/uninstall, health, settings, CSV/JSON export |
 | **Background service** | LaunchAgent (macOS), systemd user service (Linux), logon task (Windows) |
 | **Windows & Linux** | installer support, PowerShell-safe Codex hooks on Windows |

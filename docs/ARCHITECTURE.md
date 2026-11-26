@@ -17,7 +17,7 @@
                      → Claude listener    │               │ thread/queue/add + codex://threads/wake
                      headless: claude -p  │               │ headless: codex exec [resume]
                                           ▼               ▼
-                          Native macOS app (SwiftUI)   Web dashboard (React; Windows/Linux)
+              macOS app (SwiftUI)   Desktop app (Flutter; Windows/Linux)   Web dashboard (React)
 ```
 
 ## Processes
@@ -101,6 +101,9 @@ dashboard/               React + Vite web dashboard
 macos/Sources/           native macOS app (SwiftUI, Swift Charts): window + menu-bar icon
 macos/tools/             app icon renderer
 macos/build.sh           builds macos/build/BlueAIBridge.app
+desktop/                 Flutter desktop app (Windows, Linux; runs on macOS for testing)
+desktop/packaging/       Linux .deb/.tar.gz (Docker) and Windows Inno Setup
+.github/workflows/       CI: Node tests, Linux and Windows desktop builds, releases on v* tags
 test/                    node:test suites
 scripts/demo.mjs         seeded demo broker
 ```
