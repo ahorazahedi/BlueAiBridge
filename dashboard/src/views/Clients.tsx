@@ -23,6 +23,7 @@ const DESC: Record<string, string> = {
   claude: "MCP server (user scope), 7 hooks and the tool permission, for Claude Desktop's Code tab and the Claude Code CLI.",
   codex: "MCP server in ~/.codex/config.toml and 3 hooks in ~/.codex/hooks.json, for ChatGPT Desktop and the Codex CLI.",
   service: "Keeps the broker and this dashboard running and restarts them if they stop: a LaunchAgent on macOS, a systemd user service on Linux, a logon task on Windows.",
+  desktop: "The BlueAIBridge desktop app for Windows and Linux: this whole dashboard in its own window, plus a tray icon with live status. Starts at login.",
   menubar: "The native macOS app: this whole dashboard in its own window, plus a menu-bar icon with live status. Starts at login.",
 };
 

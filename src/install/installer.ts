@@ -14,8 +14,8 @@ import { paths, HOME } from "../shared/paths.js";
 import { IS_LINUX, IS_MAC, IS_WIN, PLATFORM, appInstalled, locateClaude, locateCodex, locateCodexStandalone } from "../shared/platform.js";
 import { VERSION } from "../version.js";
 
-export type Target = "runtime" | "claude" | "codex" | "service" | "menubar";
-export const TARGETS: Target[] = ["runtime", "claude", "codex", "service", "menubar"];
+export type Target = "runtime" | "claude" | "codex" | "service" | "menubar" | "desktop";
+export const TARGETS: Target[] = ["runtime", "claude", "codex", "service", "menubar", "desktop"];
 const SERVER_NAME = "blue-ai-bridge";
 const CODEX_NAME = "blue_ai_bridge";
 const BEGIN = "# >>> blue-ai-bridge (managed by BlueAIBridge — use its dashboard or `blueai uninstall` to change)";
@@ -457,12 +457,94 @@ function installMenubar(action: "install" | "uninstall"): StepResult {
   return { target: "menubar", ok: true, message: `installed ${dest} (menu-bar icon at login; open it from Applications or the icon)` };
 }
 
+// ---------------------------------------------------------------------
+// the Flutter desktop app (Windows, Linux)
+// ---------------------------------------------------------------------
+
+export const desktopAppDir = () =>
+  IS_WIN ? path.join(process.env.LOCALAPPDATA || path.join(HOME(), "AppData", "Local"), "Programs", "BlueAIBridge") : path.join(HOME(), ".local", "share", "blueaibridge", "app");
+const desktopExe = () => path.join(desktopAppDir(), IS_WIN ? "blue_ai_bridge.exe" : "blue_ai_bridge");
+const linuxDesktopFile = () => path.join(HOME(), ".local", "share", "applications", "blueaibridge.desktop");
+const linuxAutostartFile = () => path.join(process.env.XDG_CONFIG_HOME || path.join(HOME(), ".config"), "autostart", "blueaibridge.desktop");
+const winStartMenu = () => path.join(process.env.APPDATA || path.join(HOME(), "AppData", "Roaming"), "Microsoft", "Windows", "Start Menu", "Programs", "BlueAIBridge.lnk");
+const winStartup = () => path.join(process.env.APPDATA || path.join(HOME(), "AppData", "Roaming"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "BlueAIBridge.lnk");
+
+/** Where a locally built Flutter bundle is (`flutter build linux|windows --release`). */
+function desktopBuild(): string | null {
+  if (process.env.BLUE_AI_BRIDGE_DESKTOP_BUILD) return fs.existsSync(process.env.BLUE_AI_BRIDGE_DESKTOP_BUILD) ? process.env.BLUE_AI_BRIDGE_DESKTOP_BUILD : null;
+  const root = path.join(SELF_ROOT, "desktop", "build");
+  const cands = IS_WIN
+    ? [path.join(root, "windows", "x64", "runner", "Release")]
+    : ["x64", "arm64"].map((a) => path.join(root, "linux", a, "release", "bundle"));
+  return cands.find((c) => fs.existsSync(c)) ?? null;
+}
+
+export function linuxDesktopEntry(background: boolean): string {
+  return `[Desktop Entry]
+Type=Application
+Name=BlueAIBridge
+Comment=Claude Code and ChatGPT review and talk to each other
+Exec="${desktopExe()}"${background ? " --background" : ""}
+Icon=${path.join(desktopAppDir(), "data", "flutter_assets", "assets", "app_icon.png")}
+Categories=Development;
+StartupWMClass=blue_ai_bridge
+Terminal=false
+${background ? "X-GNOME-Autostart-enabled=true\n" : ""}`;
+}
+
+function winShortcut(lnk: string, target: string, args: string): boolean {
+  const ps = `$s=(New-Object -ComObject WScript.Shell).CreateShortcut('${lnk.replace(/'/g, "''")}');$s.TargetPath='${target.replace(/'/g, "''")}';$s.Arguments='${args}';$s.WorkingDirectory='${path.dirname(target).replace(/'/g, "''")}';$s.Save()`;
+  return sys("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps]);
+}
+
+function installDesktop(action: "install" | "uninstall"): StepResult {
+  if (IS_MAC) return { target: "desktop", ok: true, message: "skipped: macOS uses the native Swift app (the menubar target)" };
+  if (!IS_WIN && !IS_LINUX) return { target: "desktop", ok: true, message: `skipped (no desktop app for ${PLATFORM}); use the web dashboard` };
+  const dir = desktopAppDir();
+  if (action === "uninstall") {
+    if (IS_LINUX) {
+      fs.rmSync(linuxDesktopFile(), { force: true });
+      fs.rmSync(linuxAutostartFile(), { force: true });
+      sys("pkill", ["-x", "blue_ai_bridge"]);
+    } else {
+      fs.rmSync(winStartMenu(), { force: true });
+      fs.rmSync(winStartup(), { force: true });
+      sys("taskkill", ["/IM", "blue_ai_bridge.exe", "/F"]);
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+    return { target: "desktop", ok: true, message: `removed the desktop app from ${dir}` };
+  }
+  const src = desktopBuild();
+  if (!src)
+    return {
+      target: "desktop",
+      ok: true,
+      message: IS_WIN
+        ? "skipped: no Windows build here. Install BlueAIBridge-…-windows-x64-setup.exe from the GitHub release, or run `flutter build windows --release` in desktop/"
+        : "skipped: no Linux build here. Install blueaibridge_…_amd64.deb from the GitHub release, or run desktop/packaging/linux/build.sh",
+    };
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(path.dirname(dir), { recursive: true });
+  fs.cpSync(src, dir, { recursive: true, verbatimSymlinks: true });
+  if (IS_LINUX) {
+    fs.chmodSync(desktopExe(), 0o755);
+    fs.mkdirSync(path.dirname(linuxDesktopFile()), { recursive: true });
+    fs.writeFileSync(linuxDesktopFile(), linuxDesktopEntry(false));
+    fs.mkdirSync(path.dirname(linuxAutostartFile()), { recursive: true });
+    fs.writeFileSync(linuxAutostartFile(), linuxDesktopEntry(true));
+    return { target: "desktop", ok: true, message: `installed the desktop app to ${dir} (app menu entry; tray icon at login)` };
+  }
+  const ok = winShortcut(winStartMenu(), desktopExe(), "") && winShortcut(winStartup(), desktopExe(), "--background");
+  return { target: "desktop", ok, message: ok ? `installed the desktop app to ${dir} (Start Menu; tray icon at sign-in)` : `copied the app to ${dir}, but creating the shortcuts failed` };
+}
+
 const RUNNERS: Record<Target, (a: "install" | "uninstall") => StepResult> = {
   runtime: installRuntime,
   claude: installClaude,
   codex: installCodex,
   service: installService,
   menubar: installMenubar,
+  desktop: installDesktop,
 };
 
 export async function runInstall(action: "install" | "uninstall", target: Target | "all" = "all"): Promise<InstallResult> {
@@ -470,7 +552,7 @@ export async function runInstall(action: "install" | "uninstall", target: Target
   let order: Target[] = target === "all" ? [...TARGETS] : [target];
   // configs point at the runtime: install it first, remove it last
   if (action === "install" && target !== "runtime" && target !== "all" && !fs.existsSync(runtimeCli())) order = ["runtime", ...order];
-  if (action === "uninstall" && target === "all") order = ["menubar", "service", "claude", "codex", "runtime"];
+  if (action === "uninstall" && target === "all") order = ["desktop", "menubar", "service", "claude", "codex", "runtime"];
   const steps: StepResult[] = [];
   for (const t of order) {
     try {
@@ -565,6 +647,7 @@ export async function installStatus() {
         clients: [],
       },
       ...(IS_MAC ? [{ id: "menubar" as const, name: "macOS app", installed: fs.existsSync(menubarDest()), partial: false, details: { app: menubarDest() }, clients: [] }] : []),
+      ...(IS_WIN || IS_LINUX ? [{ id: "desktop" as const, name: "Desktop app", installed: fs.existsSync(desktopExe()), partial: false, details: { app: desktopAppDir() }, clients: [] }] : []),
     ],
   };
 }
