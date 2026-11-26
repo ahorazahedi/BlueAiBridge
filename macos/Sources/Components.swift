@@ -365,3 +365,13 @@ struct ConfirmAction: Identifiable {
     let destructive: Bool
     let run: () async -> Void
 }
+
+/// Shorten long text at a line boundary, so code spans and fences stay intact.
+func clipAtLine(_ s: String, _ n: Int) -> String {
+    guard s.count > n else { return s }
+    let head = String(s.prefix(n))
+    var out = head
+    if let nl = head.lastIndex(of: "\n"), head.distance(from: head.startIndex, to: nl) > n / 2 { out = String(head[..<nl]) }
+    if out.components(separatedBy: "```").count % 2 == 0 { out += "\n```" }
+    return out + "\n…"
+}
