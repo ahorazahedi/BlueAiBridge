@@ -13,7 +13,11 @@
   <a href="../../actions/workflows/build.yml"><img src="../../actions/workflows/build.yml/badge.svg" alt="build"></a>
   <a href="../../releases/latest"><img src="https://img.shields.io/badge/download-latest%20release-2563eb" alt="Download"></a>
   <img src="https://img.shields.io/badge/macOS%20·%20Windows%20·%20Ubuntu-supported-0f766e" alt="Platforms">
+  <img src="https://img.shields.io/badge/status-under%20heavy%20development-d97706" alt="Status: under heavy development">
 </p>
+
+> [!WARNING]
+> **BlueAIBridge is under heavy development.** The apps and the bridge may be unstable, and features, settings and file formats can change between releases without notice. Use it at your own risk, and keep your work in git so you can undo anything an agent changes.
 
 <p align="center">
   <img src="docs/assets/screenshots/macos-overview.jpg" width="900" alt="BlueAIBridge on macOS: overview with traffic by direction, data flow, verdicts and live activity">
@@ -27,12 +31,43 @@
 
 | | Get it | Notes |
 |---|---|---|
-| **macOS** (Apple silicon) | `BlueAIBridge-<version>-macos-arm64.zip` | Unzip into `~/Applications`. The app isn't notarized yet: the first time, right-click it and choose **Open**. |
+| **macOS** (Apple silicon) | `BlueAIBridge-<version>-macos-arm64.zip` | Unzip into `~/Applications`. The app isn't notarized yet; see [Run the macOS app](#run-the-macos-app). |
 | **Windows** (x64) | `BlueAIBridge-<version>-windows-x64-setup.exe` or `.zip` | The setup can start BlueAIBridge in the tray when you sign in. |
 | **Ubuntu / Debian** | `blueaibridge_<version>_amd64.deb` or `_arm64.deb` | `sudo apt install ./blueaibridge_<version>_amd64.deb`. Also as `.tar.gz`. |
 | **The bridge** (all systems) | `BlueAIBridge-<version>-bridge.tar.gz` | Needs Node.js 22.5+. Unpack it, then run `node dist/src/cli.js install`. |
 
 All of these are on the [latest release](../../releases/latest). The apps show and manage the bridge, which you install once per computer (see [Install](#install)).
+
+## Run the macOS app
+
+Needs macOS 14 or later on Apple silicon, and Node.js 22.5+ (`brew install node`).
+
+1. Install the bridge. From the [latest release](../../releases/latest), download `BlueAIBridge-<version>-bridge.tar.gz`, then:
+
+   ```bash
+   tar -xzf ~/Downloads/BlueAIBridge-*-bridge.tar.gz -C ~
+   cd ~/BlueAIBridge && node dist/src/cli.js install
+   ```
+
+2. Install the app. Download `BlueAIBridge-<version>-macos-arm64.zip` from the same release and unzip it into `~/Applications`:
+
+   ```bash
+   mkdir -p ~/Applications && unzip -o ~/Downloads/BlueAIBridge-*-macos-arm64.zip -d ~/Applications
+   ```
+
+3. Let macOS open it. The app isn't notarized yet, so macOS blocks it the first time. Either remove the download quarantine:
+
+   ```bash
+   xattr -dr com.apple.quarantine ~/Applications/BlueAIBridge.app
+   ```
+
+   or open it once, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
+
+4. Open it from `~/Applications`, Spotlight, or with `node dist/src/cli.js ui`. It lives in the menu bar; closing the window keeps it running there.
+
+5. Restart Claude Desktop and ChatGPT Desktop, trust the BlueAIBridge hooks when ChatGPT asks, and check everything with `node dist/src/cli.js doctor`.
+
+To build the app from source instead, see [Install](#install) (`npm run build:mac`, needs Xcode).
 
 ## How it works
 
