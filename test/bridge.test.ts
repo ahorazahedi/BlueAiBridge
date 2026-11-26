@@ -22,6 +22,11 @@ const inbox = (e: { app: string; id: string }) => {
     return null;
   }
 };
+/** Let other engines' pending (debounced) view writes land, then write this engine's view: hooks read view.json. */
+const settleView = async (b: InstanceType<typeof Bridge>) => {
+  await new Promise((r) => setTimeout(r, 120));
+  b.writeView();
+};
 const alive = (e: { app: string; id: string }) => fs.writeFileSync(path.join(paths.listeners(), fileKey(`${e.app}:${e.id}`) + ".alive"), "1");
 
 test("ask: headless question answered inline, and continued by session_id", async () => {
@@ -198,7 +203,7 @@ test("auto mode (key moments): baseline, end-of-turn guard once, approval clears
   const me = { app: "claude" as const, id: "c-auto", cwd: work, surface: "desktop" as const };
   const on = await b.auto(me, { on: true, reviewer: "chatgpt" });
   assert.match(on.text, /Auto mode is on \(key moments\)/);
-  b.writeView();
+  await settleView(b);
   // no change yet → no guard
   let r = await runHook("claude", "stop", JSON.stringify({ session_id: "c-auto", last_assistant_message: "done" }));
   assert.equal(r.stdout, "");
@@ -212,7 +217,7 @@ test("auto mode (key moments): baseline, end-of-turn guard once, approval clears
   await b.review(me, { request: "changed a.js", delivery: "headless" });
   const auto = b.store.auto(me)!;
   assert.equal(auto.fixRound, 0);
-  b.writeView();
+  await settleView(b);
   fs.rmSync(path.join(paths.listeners(), fileKey("claude:c-auto") + ".guard"), { force: true });
   r = await runHook("claude", "stop", JSON.stringify({ session_id: "c-auto" }));
   assert.equal(r.stdout, "", "approved changes don't trigger the guard");
@@ -229,7 +234,7 @@ test("auto mode (every turn): prompt + stop hooks produce a turn review; approva
   const me = { app: "claude" as const, id: "c-every", cwd: work, surface: "desktop" as const };
   await b.auto(me, { on: true, every_turn: true, reviewer: "claude", session_id: "reviewer-sess" });
   b.store.touchClient({ app: "claude", id: "reviewer-sess" }, { surface: "headless" });
-  b.writeView();
+  await settleView(b);
   for (const f of fs.readdirSync(paths.outbox())) fs.rmSync(path.join(paths.outbox(), f));
   await runHook("claude", "prompt", JSON.stringify({ session_id: "c-every", prompt: "Add a helper", prompt_id: "p1" }));
   fs.writeFileSync(path.join(work, "helper.js"), "export const h = 1;\n");
