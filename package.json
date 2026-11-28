@@ -1,6 +1,6 @@
 {
   "name": "blue-ai-bridge",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "BlueAIBridge: Claude Code and ChatGPT/Codex review and talk to each other, with a live monitoring dashboard and a macOS menu-bar app.",
   "type": "module",
   "private": true,
