@@ -21,7 +21,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p dashboard/tsconfig.json --noEmit",
     "test": "npm run build && node --no-warnings --test --test-concurrency=1 \"dist/test/*.test.js\"",
     "blueai": "node --no-warnings dist/src/cli.js",
-    "build:linux": "docker build -t blueaibridge-linux desktop/packaging/linux && mkdir -p desktop/build/dist && docker run --rm -v \"$PWD/desktop:/in:ro\" -v \"$PWD/desktop/build/dist:/out\" blueaibridge-linux bash -c 'cp -r /in /work && cd /work && rm -rf .dart_tool build && bash packaging/linux/build.sh /out'",
+    "build:linux": "docker build -t blueaibridge-linux desktop/packaging/linux && mkdir -p desktop/build/dist && docker run --rm -v \"$PWD:/in:ro\" -v \"$PWD/desktop/build/dist:/out\" blueaibridge-linux bash -c 'mkdir /work && tar -C /in --exclude=./.git --exclude=./node_modules --exclude=./dist --exclude=./desktop/build --exclude=./desktop/.dart_tool -cf - . | tar -C /work -xf - && cd /work/desktop && bash packaging/linux/build.sh /out'",
     "dev:desktop": "cd desktop && flutter run -d macos"
   },
   "devDependencies": {

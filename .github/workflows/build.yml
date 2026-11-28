@@ -48,6 +48,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      - name: Build the bridge (it ships inside the app)
+        run: npm ci && npm run build
       - name: Build
         run: bash macos/build.sh
       - name: Package
@@ -62,9 +65,17 @@ jobs:
 
   desktop-linux:
     name: Desktop app (Linux)
-    runs-on: ubuntu-24.04
+    # Oldest supported Ubuntu: a binary built against GLib 2.80 (24.04) fails on
+    # 22.04 with "undefined symbol: g_once_init_enter_pointer".
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build the bridge (it ships inside the app)
+        run: npm ci && npm run build
       - name: System libraries
         run: |
           sudo apt-get update
@@ -92,6 +103,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build the bridge (it ships inside the app)
+        run: npm ci && npm run build
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -102,6 +119,9 @@ jobs:
         run: |
           flutter pub get
           flutter build windows --release
+      - name: Bundle the bridge and Node.js into the app
+        shell: bash
+        run: scripts/bundle-bridge.sh desktop/build/windows/x64/runner/Release win-x64
       - name: Package (zip + installer)
         working-directory: desktop
         shell: pwsh

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build the native BlueAIBridge app (window + menu-bar icon) into
-# macos/build/BlueAIBridge.app. Needs Xcode's Swift toolchain; macOS 14+.
+# macos/build/BlueAIBridge.app, with the bridge and Node.js inside
+# (Contents/Resources/bridge). Needs Xcode's Swift toolchain; macOS 14+.
 set -euo pipefail
 cd "$(dirname "$0")"
 APP=build/BlueAIBridge.app
@@ -41,5 +42,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
+# the bridge and its own Node.js ship inside the app; it installs them on first launch
+[ -f ../dist/src/cli.js ] || (cd .. && npm ci && npm run build)
+case "$ARCH" in arm64) NODE_ARCH=arm64 ;; *) NODE_ARCH=x64 ;; esac
+../scripts/bundle-bridge.sh "$APP/Contents/Resources" "darwin-$NODE_ARCH"
+
+# sign the app (ad hoc); the bundled node keeps the signature nodejs.org gave it
 codesign --force --sign - "$APP" >/dev/null 2>&1 || true
 echo "built $(pwd)/$APP"

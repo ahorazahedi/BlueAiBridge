@@ -83,13 +83,62 @@ final class Broker: @unchecked Sendable {
         }
     }
 
+    // MARK: the bridge bundled inside the app
+
+    /// BlueAIBridge.app/Contents/Resources/bridge: the bridge and its own Node.js, shipped by
+    /// build.sh (scripts/bundle-bridge.sh). Nil in a build without it.
+    var bundled: (node: String, cli: String, version: String)? {
+        guard let dir = Bundle.main.resourceURL?.appendingPathComponent("bridge") else { return nil }
+        let node = dir.appendingPathComponent("node/node").path
+        let cli = dir.appendingPathComponent("dist/src/cli.js").path
+        guard let version = Self.version(dir.appendingPathComponent("package.json")),
+              FileManager.default.isExecutableFile(atPath: node), FileManager.default.fileExists(atPath: cli) else { return nil }
+        return (node, cli, version)
+    }
+
+    /// The version of the runtime the configs and the service run, if installed.
+    var installedVersion: String? { Self.version(root.appendingPathComponent("runtime/current/package.json")) }
+
+    private static func version(_ packageJson: URL) -> String? {
+        guard let d = try? Data(contentsOf: packageJson), let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return nil }
+        return j["version"] as? String
+    }
+
+    /// The app carries a bridge that isn't installed yet, or a newer one.
+    var needsSetup: Bool {
+        guard let b = bundled else { return false }
+        return b.version != installedVersion
+    }
+
+    /// Installs the bundled bridge for this user: runtime (with Node.js), Claude and Codex
+    /// configs, the LaunchAgent that keeps the broker running, and this app at login.
+    func setup() async -> (ok: Bool, output: String) {
+        guard let b = bundled else { return (false, "This build of the app has no bridge bundled.") }
+        return await Task.detached {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: b.node)
+            p.arguments = ["--no-warnings", b.cli, "install"]
+            p.currentDirectoryURL = URL(fileURLWithPath: b.cli).deletingLastPathComponent()
+            let pipe = Pipe()
+            p.standardOutput = pipe
+            p.standardError = pipe
+            do { try p.run() } catch { return (false, error.localizedDescription) }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            p.waitUntilExit()
+            let out = (String(data: data, encoding: .utf8) ?? "")
+                .replacingOccurrences(of: "\u{1B}\\[[0-9;]*m", with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return (p.terminationStatus == 0, out)
+        }.value
+    }
+
     // MARK: starting the broker
 
-    /// node and the runtime CLI, as the installer recorded them
+    /// node and the runtime CLI, as the installer recorded them (else the app's own bundled ones)
     func cli() -> (node: String, cli: String)? {
         let rt = root.appendingPathComponent("runtime/current")
         let cli = rt.appendingPathComponent("dist/src/cli.js").path
-        guard FileManager.default.fileExists(atPath: cli) else { return nil }
+        guard FileManager.default.fileExists(atPath: cli) else { return bundled.map { ($0.node, $0.cli) } }
         var node = (try? String(contentsOf: rt.appendingPathComponent("node-path"), encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if node.isEmpty || !FileManager.default.isExecutableFile(atPath: node) {
             node = ["/opt/homebrew/bin/node", "/usr/local/bin/node", "/usr/bin/node"].first { FileManager.default.isExecutableFile(atPath: $0) } ?? ""

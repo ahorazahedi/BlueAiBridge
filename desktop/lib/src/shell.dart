@@ -60,7 +60,7 @@ class Shell extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const _Toolbar(),
-                        Expanded(child: app.connection == Connection.down && app.health == null ? const _Offline() : _page(app.page)),
+                        Expanded(child: app.setup != Setup.none || (app.connection == Connection.down && app.health == null) ? const _Offline() : _page(app.page)),
                       ],
                     ),
                   ),
@@ -348,15 +348,36 @@ class _Offline extends StatelessWidget {
   const _Offline();
   @override
   Widget build(BuildContext context) {
-    final app = context.read<AppState>();
+    final app = context.watch<AppState>();
     final installed = app.broker.cli() != null;
+    if (app.setup == Setup.running) {
+      return const EmptyState(
+        icon: LucideIcons.loaderCircle,
+        title: 'Setting up BlueAIBridge',
+        message: 'Installing the bridge and connecting Claude Code and Codex. This takes a few seconds.',
+      );
+    }
+    if (app.setup == Setup.failed) {
+      return EmptyState(
+        icon: LucideIcons.octagonX,
+        title: "Setup didn't finish",
+        message: app.setupOutput?.isNotEmpty == true ? app.setupOutput! : 'The bridge could not be installed.',
+        action: Btn('Try again', primary: true, onPressed: app.runSetup),
+      );
+    }
     return EmptyState(
       icon: LucideIcons.unplug,
       title: "The broker isn't running",
       message: installed
           ? 'It starts on its own when a chat uses BlueAIBridge, or keeps running with the background service.'
+          : app.broker.bundled != null
+          ? "BlueAIBridge isn't set up for this user yet."
           : "BlueAIBridge isn't installed yet. In its folder run: node dist/src/cli.js install",
-      action: installed ? Btn('Start broker', primary: true, onPressed: app.startBroker) : null,
+      action: installed
+          ? Btn('Start broker', primary: true, onPressed: app.startBroker)
+          : app.broker.bundled != null
+          ? Btn('Set up', primary: true, onPressed: app.runSetup)
+          : null,
     );
   }
 }

@@ -381,6 +381,7 @@ class _ClientsPageState extends State<ClientsPage> {
       load: () async {
         final s = app.broker.get('/api/install', InstallStatus.fromJson);
         final c = app.broker.get('/api/clients', (j) => (j['clients'] as List).map((e) => ClientInfo.fromJson(e)).toList());
+        await Future.wait([s, c]); // so a failure of one isn't left unhandled while awaiting another
         return _ClientsData(await s, await c);
       },
       builder: (context, d, error, reload) => PageScroll(

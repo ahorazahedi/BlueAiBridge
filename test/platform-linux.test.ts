@@ -36,7 +36,7 @@ test("linux: service is a systemd user unit; the native app is skipped", async (
   assert.ok(fs.existsSync(app));
   const autostart = fs.readFileSync(path.join(env.BLUE_AI_BRIDGE_USER_HOME, ".config", "autostart", "blueaibridge.desktop"), "utf8");
   assert.match(autostart, /Exec=".*blue_ai_bridge" --background/);
-  assert.ok(fs.existsSync(path.join(env.BLUE_AI_BRIDGE_USER_HOME, ".local", "share", "applications", "blueaibridge.desktop")));
+  assert.ok(fs.existsSync(path.join(env.BLUE_AI_BRIDGE_USER_HOME, ".local", "share", "applications", "com.blueaibridge.blue_ai_bridge.desktop")));
   assert.equal((await installStatus()).targets.find((t) => t.id === "desktop")!.installed, true);
   const u = await runInstall("uninstall", "all");
   assert.ok(!fs.existsSync(app));

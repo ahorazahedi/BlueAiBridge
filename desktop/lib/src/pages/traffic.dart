@@ -55,6 +55,7 @@ class _TrafficPageState extends State<TrafficPage> {
           (j) => (j['messages'] as List).map((e) => Message.fromJson(e)).toList(),
         );
         final s = app.broker.get('/api/summary?range=${app.range.label}', Summary.fromJson);
+        await Future.wait([m, s]); // so a failure of one isn't left unhandled while awaiting another
         return _TrafficData(await m, await s);
       },
       builder: (context, d, error, reload) {

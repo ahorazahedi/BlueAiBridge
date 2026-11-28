@@ -16,7 +16,7 @@ flutter pub get
 flutter run -d macos     # or: -d linux, -d windows
 ```
 
-It connects to the broker on `127.0.0.1` using the token in `~/.blueaibridge/data`. Install BlueAIBridge first (`node dist/src/cli.js install` in the repo root).
+It connects to the broker on `127.0.0.1` using the token in `~/.blueaibridge/data`. Release builds carry the bridge and a Node.js runtime in `bridge/` next to the executable (`scripts/bundle-bridge.sh`) and, on first launch or when the app is newer than the installed runtime, run `bridge/node/node bridge/dist/src/cli.js install`. When run from source (`flutter run`) there is no `bridge/`: install BlueAIBridge first (`node dist/src/cli.js install` in the repo root).
 
 ## Build installers
 
@@ -24,7 +24,9 @@ It connects to the broker on `127.0.0.1` using the token in `~/.blueaibridge/dat
 |---|---|---|
 | Ubuntu / Debian (on a Mac) | `npm run build:linux` (Docker) | `blueaibridge_<v>_<arch>.deb`, `BlueAIBridge-<v>-linux-<arch>.tar.gz` |
 | Ubuntu (natively) | `desktop/packaging/linux/build.sh` | same |
-| Windows | GitHub Actions (`.github/workflows/build.yml`), or `flutter build windows --release` + Inno Setup on Windows | `BlueAIBridge-<v>-windows-x64-setup.exe`, `.zip` |
+| Windows | GitHub Actions (`.github/workflows/build.yml`), or `npm run build`, `flutter build windows --release`, `bash scripts/bundle-bridge.sh build/windows/x64/runner/Release win-x64` + Inno Setup on Windows | `BlueAIBridge-<v>-windows-x64-setup.exe`, `.zip` |
+
+Every build bundles the bridge and Node.js (downloaded from nodejs.org and checked against its SHA-256; `NODE_VERSION` picks the version). The Linux packages are built on Ubuntu 22.04 so they run there and on anything newer.
 
 On a Mac, Docker builds for your Mac's own architecture (arm64 on Apple silicon). The x86_64 builds come from CI. Pushing a `v*` tag publishes all of them as a GitHub release.
 

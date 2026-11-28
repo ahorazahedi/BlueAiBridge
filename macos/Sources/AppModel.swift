@@ -45,6 +45,9 @@ enum TimeRange: String, CaseIterable, Identifiable {
 
 enum Connection { case connecting, live, down }
 
+/// First-launch install of the bridge the app carries.
+enum Setup { case none, running, failed }
+
 @MainActor
 @Observable
 final class AppModel {
@@ -61,6 +64,8 @@ final class AppModel {
     var selectedLink: String?
     var selectedChat: String?
     var toast: Toast?
+    var setup: Setup = .none
+    var setupOutput: String?
 
     struct Toast: Identifiable, Equatable { let id = UUID(); let title: String; let body: String?; let isError: Bool }
 
@@ -71,7 +76,10 @@ final class AppModel {
     func start() {
         guard !started else { return }
         started = true
-        Task { await refreshCore() }
+        Task {
+            if broker.needsSetup { await runSetup() }
+            await refreshCore()
+        }
         Task {
             for await e in broker.events() {
                 switch e.type {
@@ -131,6 +139,35 @@ final class AppModel {
         if let link { selectedLink = link }
         if let chat { selectedChat = chat }
         self.page = page
+    }
+
+    /// Installs (or updates) the bridge bundled in the app, then reconnects.
+    func runSetup() async {
+        guard setup != .running else { return }
+        setup = .running
+        setupOutput = nil
+        let r = await broker.setup()
+        setupOutput = r.output
+        // a step that can't apply here still leaves a working bridge (the broker then starts
+        // on demand); only a missing runtime is a failure
+        let installed = !broker.needsSetup
+        setup = installed ? .none : .failed
+        if installed && !r.ok {
+            notify("BlueAIBridge is set up, with warnings", r.output.split(separator: "\n").filter { $0.hasPrefix("✖") }.joined(separator: "\n"), error: true)
+        }
+        if installed {
+            // the LaunchAgent starts the broker; give it a moment, else start it ourselves
+            func up() async -> Bool { let h: Health? = try? await broker.get("/api/health", timeout: 2); return h != nil }
+            for _ in 0..<10 {
+                if await up() { break }
+                try? await Task.sleep(nanoseconds: 500_000_000)
+            }
+            if !(await up()) {
+                broker.startBroker()
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+            }
+        }
+        await refreshCore()
     }
 
     func startBroker() {

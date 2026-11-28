@@ -94,13 +94,63 @@ class Broker {
   }
 
   // ------------------------------------------------------------------
+  // the bridge bundled inside the app
+
+  /// `<app>/bridge`: the bridge and its own Node.js, shipped in release builds
+  /// (scripts/bundle-bridge.sh). Null when running from source.
+  ({String node, String cli, String version})? get bundled {
+    final dir = [File(Platform.resolvedExecutable).parent.path, 'bridge'].join(Platform.pathSeparator);
+    final node = [dir, 'node', Platform.isWindows ? 'node.exe' : 'node'].join(Platform.pathSeparator);
+    final cli = [dir, 'dist', 'src', 'cli.js'].join(Platform.pathSeparator);
+    final version = _version([dir, 'package.json'].join(Platform.pathSeparator));
+    if (version == null || !File(node).existsSync() || !File(cli).existsSync()) return null;
+    return (node: node, cli: cli, version: version);
+  }
+
+  /// The version of the runtime the configs and the service run, if installed.
+  String? get installedVersion => _version(_p(['runtime', 'current', 'package.json']));
+
+  String? _version(String packageJson) {
+    try {
+      return (jsonDecode(File(packageJson).readAsStringSync()) as Map)['version'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// The app carries a bridge that isn't installed yet, or a newer one.
+  bool get needsSetup {
+    final b = bundled;
+    return b != null && b.version != installedVersion;
+  }
+
+  /// Installs the bundled bridge for this user: runtime (with Node.js), Claude Code and
+  /// Codex configs, and the background service that keeps the broker running.
+  Future<({bool ok, String output})> setup() async {
+    final b = bundled;
+    if (b == null) return (ok: false, output: 'This build of the app has no bridge bundled.');
+    try {
+      final r = await Process.run(b.node, ['--no-warnings', b.cli, 'install'], workingDirectory: File(b.cli).parent.path).timeout(const Duration(minutes: 3));
+      final out = '${r.stdout}${r.stderr}'.replaceAll(RegExp(r'\x1B\[[0-9;]*m'), '').trim();
+      return (ok: r.exitCode == 0, output: out);
+    } on TimeoutException {
+      return (ok: false, output: 'Setup took more than 3 minutes.');
+    } catch (e) {
+      return (ok: false, output: e.toString());
+    }
+  }
+
+  // ------------------------------------------------------------------
   // starting the broker
 
   /// node and the installed runtime CLI, as the installer recorded them.
   ({String node, String cli})? cli() {
     final rt = _p(['runtime', 'current']);
     final cli = [rt, 'dist', 'src', 'cli.js'].join(Platform.pathSeparator);
-    if (!File(cli).existsSync()) return null;
+    if (!File(cli).existsSync()) {
+      final b = bundled;
+      return b == null ? null : (node: b.node, cli: b.cli);
+    }
     String node = '';
     try {
       node = File([rt, 'node-path'].join(Platform.pathSeparator)).readAsStringSync().trim();

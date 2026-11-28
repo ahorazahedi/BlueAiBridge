@@ -1,6 +1,7 @@
 // Install and uninstall BlueAIBridge for each client, idempotently, with a
 // backup of every file it changes. Targets:
-//   runtime  copies the built app to ~/.blueaibridge/runtime (configs point there, so the source folder can move)
+//   runtime  copies the built app to ~/.blueaibridge/runtime (configs point there, so the source folder can move),
+//            plus the Node.js binary when it runs from the copy bundled inside the desktop app
 //   claude   Claude Desktop (Code tab) + Claude Code CLI: MCP server (user scope), hooks, tool permission
 //   codex    ChatGPT Desktop + Codex CLI: MCP server in ~/.codex/config.toml, hooks in ~/.codex/hooks.json
 //   service  a LaunchAgent that keeps the broker (and the dashboard) running (macOS)
@@ -43,9 +44,21 @@ const SELF_ROOT = path.resolve(import.meta.dirname, "../../..");
 export const runtimeRoot = () => path.join(paths.runtime(), "current");
 export const runtimeCli = () => path.join(runtimeRoot(), "dist", "src", "cli.js");
 
-/** A node binary path that survives Homebrew upgrades (its stable symlink when it points at us). */
+const NODE_EXE = IS_WIN ? "node.exe" : "node";
+/** The Node.js binary shipped next to this code inside the desktop app (<app>/bridge/node/node), if any. */
+export const bundledNode = (): string | null => {
+  const p = path.join(SELF_ROOT, "node", NODE_EXE);
+  return fs.existsSync(p) ? p : null;
+};
+/** Where the runtime keeps its copy of the bundled node. Versioned, so a newer app never has to
+ * overwrite a node.exe that a running broker, hook or MCP server still holds open (Windows). */
+export const runtimeNode = () => path.join(paths.runtime(), "node", process.versions.node, NODE_EXE);
+
+/** The node binary the configs run: the runtime's copy of the bundled one, else the node running
+ * us (its stable Homebrew symlink when it points at us, so it survives upgrades). */
 export function nodePath(): string {
   if (process.env.BLUE_AI_BRIDGE_NODE) return process.env.BLUE_AI_BRIDGE_NODE;
+  if (bundledNode() || (fs.existsSync(runtimeNode()) && fs.realpathSync(runtimeNode()) === fs.realpathSync(process.execPath))) return runtimeNode();
   for (const cand of ["/opt/homebrew/bin/node", "/usr/local/bin/node"]) {
     try {
       if (fs.realpathSync(cand) === fs.realpathSync(process.execPath)) return cand;
@@ -147,6 +160,25 @@ function installRuntime(action: "install" | "uninstall"): StepResult {
   if (path.resolve(src) === path.resolve(dest)) return { target: "runtime", ok: true, message: `running from the installed runtime (${dest}); nothing to copy` };
   if (!fs.existsSync(path.join(src, "dist", "src", "cli.js"))) throw new Error("build first: npm run build");
   if (!fs.existsSync(path.join(src, "dist", "dashboard", "index.html"))) throw new Error("the dashboard isn't built: npm run build");
+  const node = bundledNode();
+  if (node && !fs.existsSync(runtimeNode())) {
+    const tmp = `${runtimeNode()}.tmp-${process.pid}`;
+    fs.mkdirSync(path.dirname(runtimeNode()), { recursive: true });
+    fs.copyFileSync(node, tmp);
+    fs.chmodSync(tmp, 0o755);
+    fs.renameSync(tmp, runtimeNode());
+  }
+  if (node) {
+    // drop node versions older apps left behind; one still in use (Windows) stays until next time
+    for (const v of fs.readdirSync(path.join(paths.runtime(), "node"))) {
+      if (v === process.versions.node) continue;
+      try {
+        fs.rmSync(path.join(paths.runtime(), "node", v), { recursive: true, force: true });
+      } catch {
+        /* still running */
+      }
+    }
+  }
   const staging = path.join(paths.runtime(), `staging-${process.pid}`);
   fs.rmSync(staging, { recursive: true, force: true });
   fs.mkdirSync(staging, { recursive: true });
@@ -416,7 +448,10 @@ const menubarDest = () => paths.macApp();
 /** The native macOS app (window + menu-bar icon). Other platforms use the web dashboard. */
 function installMenubar(action: "install" | "uninstall"): StepResult {
   if (!IS_MAC) return { target: "menubar", ok: true, message: "skipped: the native app is macOS only; use the web dashboard (`blueai ui`)" };
-  const dest = menubarDest();
+  // running from the bridge inside BlueAIBridge.app/Contents/Resources/bridge: that app is the one
+  // the user installed (and is running): keep it where it is, only start it at login
+  const bundledApp = bundledNode() ? path.resolve(SELF_ROOT, "..", "..", "..") : null;
+  const dest = action === "install" && bundledApp?.endsWith(".app") ? bundledApp : menubarDest();
   const label = "com.blueaibridge.app";
   const loginItem = path.join(HOME(), "Library", "LaunchAgents", `${label}.plist`);
   const quitRunning = () => {
@@ -438,9 +473,9 @@ function installMenubar(action: "install" | "uninstall"): StepResult {
     fs.rmSync(dest, { recursive: true, force: true });
     return { target: "menubar", ok: true, message: `removed ${dest}` };
   }
-  const src = [path.join(runtimeRoot(), "BlueAIBridge.app"), path.join(SELF_ROOT, "macos", "build", "BlueAIBridge.app")].find((p) => fs.existsSync(p));
+  const src = dest === bundledApp ? dest : [path.join(runtimeRoot(), "BlueAIBridge.app"), path.join(SELF_ROOT, "macos", "build", "BlueAIBridge.app")].find((p) => fs.existsSync(p));
   if (!src) return { target: "menubar", ok: false, message: "the macOS app isn't built: run `npm run build:mac` (needs Xcode's Swift), then install again" };
-  quitRunning();
+  if (dest !== bundledApp) quitRunning();
   if (path.resolve(src) !== path.resolve(dest)) {
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.rmSync(dest, { recursive: true, force: true });
@@ -453,6 +488,7 @@ function installMenubar(action: "install" | "uninstall"): StepResult {
     `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>Label</key><string>${label}</string><key>ProgramArguments</key><array><string>/usr/bin/open</string><string>-g</string><string>-a</string><string>${dest}</string><string>--args</string><string>--background</string></array><key>RunAtLoad</key><true/></dict></plist>\n`,
   );
   sys("launchctl", ["bootstrap", `gui/${os.userInfo().uid}`, loginItem]);
+  if (dest === bundledApp) return { target: "menubar", ok: true, message: `the app is installed at ${dest} (menu-bar icon at login)` };
   sys("open", ["-g", "-a", dest, "--args", "--background"]);
   return { target: "menubar", ok: true, message: `installed ${dest} (menu-bar icon at login; open it from Applications or the icon)` };
 }
@@ -464,7 +500,10 @@ function installMenubar(action: "install" | "uninstall"): StepResult {
 export const desktopAppDir = () =>
   IS_WIN ? path.join(process.env.LOCALAPPDATA || path.join(HOME(), "AppData", "Local"), "Programs", "BlueAIBridge") : path.join(HOME(), ".local", "share", "blueaibridge", "app");
 const desktopExe = () => path.join(desktopAppDir(), IS_WIN ? "blue_ai_bridge.exe" : "blue_ai_bridge");
-const linuxDesktopFile = () => path.join(HOME(), ".local", "share", "applications", "blueaibridge.desktop");
+// named after the app's GTK application id, so GNOME and KDE match its windows to this entry (and its icon)
+const LINUX_APP_ID = "com.blueaibridge.blue_ai_bridge";
+const linuxDesktopFile = () => path.join(HOME(), ".local", "share", "applications", `${LINUX_APP_ID}.desktop`);
+const legacyLinuxDesktopFile = () => path.join(HOME(), ".local", "share", "applications", "blueaibridge.desktop");
 const linuxAutostartFile = () => path.join(process.env.XDG_CONFIG_HOME || path.join(HOME(), ".config"), "autostart", "blueaibridge.desktop");
 const winStartMenu = () => path.join(process.env.APPDATA || path.join(HOME(), "AppData", "Roaming"), "Microsoft", "Windows", "Start Menu", "Programs", "BlueAIBridge.lnk");
 const winStartup = () => path.join(process.env.APPDATA || path.join(HOME(), "AppData", "Roaming"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "BlueAIBridge.lnk");
@@ -487,7 +526,7 @@ Comment=Claude Code and ChatGPT review and talk to each other
 Exec="${desktopExe()}"${background ? " --background" : ""}
 Icon=${path.join(desktopAppDir(), "data", "flutter_assets", "assets", "app_icon.png")}
 Categories=Development;
-StartupWMClass=blue_ai_bridge
+StartupWMClass=${LINUX_APP_ID}
 Terminal=false
 ${background ? "X-GNOME-Autostart-enabled=true\n" : ""}`;
 }
@@ -504,6 +543,7 @@ function installDesktop(action: "install" | "uninstall"): StepResult {
   if (action === "uninstall") {
     if (IS_LINUX) {
       fs.rmSync(linuxDesktopFile(), { force: true });
+      fs.rmSync(legacyLinuxDesktopFile(), { force: true });
       fs.rmSync(linuxAutostartFile(), { force: true });
       sys("pkill", ["-x", "blue_ai_bridge"]);
     } else {
@@ -514,6 +554,8 @@ function installDesktop(action: "install" | "uninstall"): StepResult {
     fs.rmSync(dir, { recursive: true, force: true });
     return { target: "desktop", ok: true, message: `removed the desktop app from ${dir}` };
   }
+  // running from the bridge bundled inside the installed app: the app is already where it belongs
+  if (bundledNode()) return { target: "desktop", ok: true, message: `the app is installed at ${path.dirname(SELF_ROOT)}` };
   const src = desktopBuild();
   if (!src)
     return {
@@ -530,6 +572,7 @@ function installDesktop(action: "install" | "uninstall"): StepResult {
     fs.chmodSync(desktopExe(), 0o755);
     fs.mkdirSync(path.dirname(linuxDesktopFile()), { recursive: true });
     fs.writeFileSync(linuxDesktopFile(), linuxDesktopEntry(false));
+    fs.rmSync(legacyLinuxDesktopFile(), { force: true });
     fs.mkdirSync(path.dirname(linuxAutostartFile()), { recursive: true });
     fs.writeFileSync(linuxAutostartFile(), linuxDesktopEntry(true));
     return { target: "desktop", ok: true, message: `installed the desktop app to ${dir} (app menu entry; tray icon at login)` };

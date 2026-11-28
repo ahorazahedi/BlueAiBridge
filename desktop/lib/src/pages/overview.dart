@@ -53,6 +53,7 @@ class _OverviewPageState extends State<OverviewPage> {
         final s = b.get('/api/summary?range=$r', Summary.fromJson);
         final p = b.get('/api/series?range=$r', Series.fromJson);
         final l = b.get('/api/links?limit=8', (j) => (j['links'] as List).map((e) => Link.fromJson(e)).toList());
+        await Future.wait([s, p, l]); // so a failure of one isn't left unhandled while awaiting another
         return _OverviewData(await s, await p, await l);
       },
       builder: (context, d, error, reload) => PageScroll(

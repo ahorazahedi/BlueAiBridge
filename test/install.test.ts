@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { setupEnv } from "./helpers.js";
 const { env } = setupEnv();
 const { runInstall, installStatus, runtimeCli } = await import("../src/install/installer.js");
@@ -71,6 +72,34 @@ test("uninstall all restores the user's own config exactly", async () => {
   assert.equal(fs.readFileSync(toml, "utf8").trim(), 'model = "gpt-6"\n\n[mcp_servers.other]\ncommand = "x"');
   assert.deepEqual(JSON.parse(fs.readFileSync(codexHooks, "utf8")), { hooks: { UserPromptSubmit: [{ hooks: [userHook] }] } });
   assert.ok(!fs.existsSync(runtimeCli()));
+});
+
+test("the bridge bundled in the desktop app installs with its own Node.js", async () => {
+  // <app>/bridge as scripts/bundle-bridge.sh lays it out, with this node standing in for the bundled one
+  const app = fs.mkdtempSync(path.join(env.BLUE_AI_BRIDGE_HOME, "..", "app-"));
+  const bridge = path.join(app, "bridge");
+  const distRoot = path.resolve(import.meta.dirname, "..");
+  fs.cpSync(distRoot, path.join(bridge, "dist"), { recursive: true, filter: (p) => !p.includes(`${path.sep}test${path.sep}`) && !p.endsWith(`${path.sep}test`) });
+  fs.writeFileSync(path.join(bridge, "package.json"), JSON.stringify({ version: "0.0.0-test", type: "module" }));
+  const exe = process.platform === "win32" ? "node.exe" : "node";
+  fs.mkdirSync(path.join(bridge, "node"));
+  fs.copyFileSync(process.execPath, path.join(bridge, "node", exe));
+  fs.chmodSync(path.join(bridge, "node", exe), 0o755);
+
+  const out = execFileSync(path.join(bridge, "node", exe), ["--no-warnings", path.join(bridge, "dist", "src", "cli.js"), "install"], { encoding: "utf8", env: process.env });
+  assert.match(out, /desktop\s+the app is installed at/);
+  const node = path.join(env.BLUE_AI_BRIDGE_HOME, "runtime", "node", process.versions.node, exe);
+  assert.ok(fs.existsSync(node), "node copied into the runtime");
+  // configs run the runtime's copy, not the app's (the app can be removed or moved)
+  assert.ok(fs.readFileSync(toml, "utf8").includes(node), "Codex runs it");
+  assert.equal(fs.readFileSync(path.join(env.BLUE_AI_BRIDGE_HOME, "runtime", "current", "node-path"), "utf8"), node);
+  const s = JSON.parse(fs.readFileSync(claudeSettings, "utf8"));
+  assert.ok(s.hooks.Stop.flatMap((g: { hooks: { command: string }[] }) => g.hooks).some((h: { command: string }) => h.command.startsWith(`"${node}"`)));
+
+  const r = await runInstall("uninstall", "all");
+  assert.ok(r.steps.every((x) => x.ok), JSON.stringify(r.steps));
+  assert.ok(!fs.existsSync(node));
+  fs.rmSync(app, { recursive: true, force: true });
 });
 
 test("a broken settings file is refused, not overwritten", async () => {

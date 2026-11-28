@@ -31,31 +31,24 @@
 
 | | Get it | Notes |
 |---|---|---|
-| **macOS** (Apple silicon) | `BlueAIBridge-<version>-macos-arm64.zip` | Unzip into `~/Applications`. The app isn't notarized yet; see [Run the macOS app](#run-the-macos-app). |
-| **Windows** (x64) | `BlueAIBridge-<version>-windows-x64-setup.exe` or `.zip` | The setup can start BlueAIBridge in the tray when you sign in. |
-| **Ubuntu / Debian** | `blueaibridge_<version>_amd64.deb` or `_arm64.deb` | `sudo apt install ./blueaibridge_<version>_amd64.deb`. Also as `.tar.gz`. |
+| **macOS** (Apple silicon) | `BlueAIBridge-<version>-macos-arm64.zip` | Unzip into `~/Applications`. Everything included: the app sets up the bridge on first launch, no Node.js needed. It isn't notarized yet; see [Run the macOS app](#run-the-macos-app). |
+| **Windows** (x64) | `BlueAIBridge-<version>-windows-x64-setup.exe` or `.zip` | Everything included: the app sets up the bridge on first launch, no Node.js needed. The setup can start BlueAIBridge in the tray when you sign in. |
+| **Ubuntu / Debian** (22.04+) | `blueaibridge_<version>_amd64.deb` or `_arm64.deb` | `sudo apt install ./blueaibridge_<version>_amd64.deb`, then open BlueAIBridge. Everything included: the app sets up the bridge on first launch, no Node.js needed. Also as `.tar.gz`. |
 | **The bridge** (all systems) | `BlueAIBridge-<version>-bridge.tar.gz` | Needs Node.js 22.5+. Unpack it, then run `node dist/src/cli.js install`. |
 
-All of these are on the [latest release](../../releases/latest). The apps show and manage the bridge, which you install once per computer (see [Install](#install)).
+All of these are on the [latest release](../../releases/latest). The apps carry the bridge and their own Node.js, and install it for you the first time they open (and again after an update). Without an app, you install the bridge once per computer (see [Install](#install)).
 
 ## Run the macOS app
 
-Needs macOS 14 or later on Apple silicon, and Node.js 22.5+ (`brew install node`).
+Needs macOS 14 or later on Apple silicon. Everything else (the bridge and Node.js) is inside the app.
 
-1. Install the bridge. From the [latest release](../../releases/latest), download `BlueAIBridge-<version>-bridge.tar.gz`, then:
-
-   ```bash
-   tar -xzf ~/Downloads/BlueAIBridge-*-bridge.tar.gz -C ~
-   cd ~/BlueAIBridge && node dist/src/cli.js install
-   ```
-
-2. Install the app. Download `BlueAIBridge-<version>-macos-arm64.zip` from the same release and unzip it into `~/Applications`:
+1. Download `BlueAIBridge-<version>-macos-arm64.zip` from the [latest release](../../releases/latest) and unzip it into `~/Applications`:
 
    ```bash
    mkdir -p ~/Applications && unzip -o ~/Downloads/BlueAIBridge-*-macos-arm64.zip -d ~/Applications
    ```
 
-3. Let macOS open it. The app isn't notarized yet, so macOS blocks it the first time. Either remove the download quarantine:
+2. Let macOS open it. The app isn't notarized yet, so macOS blocks it the first time. Either remove the download quarantine:
 
    ```bash
    xattr -dr com.apple.quarantine ~/Applications/BlueAIBridge.app
@@ -63,9 +56,9 @@ Needs macOS 14 or later on Apple silicon, and Node.js 22.5+ (`brew install node`
 
    or open it once, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
 
-4. Open it from `~/Applications`, Spotlight, or with `node dist/src/cli.js ui`. It lives in the menu bar; closing the window keeps it running there.
+3. Open it from `~/Applications` or Spotlight. The first time (and after each update) it sets itself up: it installs the bridge, connects Claude Code and Codex, starts the broker, and adds the menu-bar icon at login. Closing the window keeps it running in the menu bar.
 
-5. Restart Claude Desktop and ChatGPT Desktop, trust the BlueAIBridge hooks when ChatGPT asks, and check everything with `node dist/src/cli.js doctor`.
+4. Restart Claude Desktop and ChatGPT Desktop, and trust the BlueAIBridge hooks when ChatGPT asks.
 
 To build the app from source instead, see [Install](#install) (`npm run build:mac`, needs Xcode).
 

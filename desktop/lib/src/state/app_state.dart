@@ -34,6 +34,9 @@ extension RangeInfo on TimeRange {
 
 enum Connection { connecting, live, down }
 
+/// First-launch install of the bridge the app carries.
+enum Setup { none, running, failed }
+
 class Toast {
   final String title;
   final String? body;
@@ -55,6 +58,8 @@ class AppState extends ChangeNotifier {
   String? selectedLink;
   String? selectedChat;
   Toast? toast;
+  Setup setup = Setup.none;
+  String? setupOutput;
 
   bool _started = false;
   Timer? _debounce;
@@ -70,6 +75,7 @@ class AppState extends ChangeNotifier {
       final r = prefs.getString('range');
       range = TimeRange.values.firstWhere((x) => x.label == r, orElse: () => TimeRange.h24);
     } catch (_) {}
+    if (broker.needsSetup) await runSetup();
     await refreshCore();
     _sub = broker.events().listen((e) {
       if (e.type == '_connected') {
@@ -166,6 +172,31 @@ class AppState extends ChangeNotifier {
   void dismissToast() {
     toast = null;
     notifyListeners();
+  }
+
+  /// Installs (or updates) the bridge bundled in the app, then reconnects.
+  Future<void> runSetup() async {
+    if (setup == Setup.running) return;
+    setup = Setup.running;
+    setupOutput = null;
+    notifyListeners();
+    final r = await broker.setup();
+    setupOutput = r.output;
+    // a step that can't apply here (say, no user service manager) still leaves a working
+    // bridge: the broker then starts on demand. Only a missing runtime is a failure.
+    final installed = !broker.needsSetup;
+    setup = installed ? Setup.none : Setup.failed;
+    if (installed && !r.ok) notify('BlueAIBridge is set up, with warnings', r.output.split('\n').where((l) => l.startsWith('✖')).join('\n'), true);
+    if (installed && broker.cli() != null) {
+      // the service starts the broker; if there is none, start it ourselves
+      try {
+        await broker.get('/api/health', Health.fromJson, timeout: const Duration(seconds: 3));
+      } catch (_) {
+        await broker.startBroker();
+        await Future<void>.delayed(const Duration(milliseconds: 1500));
+      }
+    }
+    await refreshCore();
   }
 
   Future<void> startBroker() async {

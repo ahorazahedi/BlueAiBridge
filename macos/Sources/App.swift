@@ -96,7 +96,7 @@ struct ContentView: View {
     }
 
     @ViewBuilder var detail: some View {
-        if model.connection == .down && model.health == nil {
+        if model.setup != .none || (model.connection == .down && model.health == nil) {
             offline
         } else {
             switch model.page ?? .overview {
@@ -112,12 +112,35 @@ struct ContentView: View {
         }
     }
 
-    var offline: some View {
+    @ViewBuilder var offline: some View {
+        switch model.setup {
+        case .running:
+            ContentUnavailableView {
+                Label("Setting up BlueAIBridge", systemImage: "gearshape.2")
+            } description: {
+                Text("Installing the bridge and connecting Claude Code and Codex. This takes a few seconds.")
+            } actions: {
+                ProgressView().controlSize(.small)
+            }
+        case .failed:
+            ContentUnavailableView {
+                Label("Setup didn't finish", systemImage: "xmark.octagon")
+            } description: {
+                Text(model.setupOutput?.isEmpty == false ? model.setupOutput! : "The bridge could not be installed.")
+            } actions: {
+                Button("Try again") { Task { await model.runSetup() } }.buttonStyle(.borderedProminent)
+            }
+        case .none:
+            notRunning
+        }
+    }
+
+    var notRunning: some View {
         ContentUnavailableView {
             Label("The broker isn't running", systemImage: "bolt.horizontal.circle")
         } description: {
             Text(model.broker.cli() == nil
-                 ? "BlueAIBridge isn't installed yet. In its folder run: node dist/src/cli.js install"
+                 ? (model.broker.bundled != nil ? "BlueAIBridge isn't set up for this user yet." : "BlueAIBridge isn't installed yet. In its folder run: node dist/src/cli.js install")
                  : "It starts on its own when a chat uses BlueAIBridge, or keeps running with the background service.")
         } actions: {
             if model.broker.cli() != nil { Button("Start broker") { model.startBroker() }.buttonStyle(.borderedProminent) }
